@@ -1,0 +1,611 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<link rel="manifest" href="manifest.json">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>InvestFlow - Kişisel Finans & Kümülatif Yatırım Asistanı</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        darkBg: '#0f172a',
+                        cardBg: '#1e293b'
+                    }
+                }
+            }
+        }
+    </script>
+    <!-- FontAwesome Simgeleri -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Chart.js Grafikler -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen font-sans antialiased pb-12">
+
+    <!-- Üst Bar & Ay Seçici Kontrolü -->
+    <header class="border-b border-slate-800 bg-slate-900/90 backdrop-blur sticky top-0 z-50">
+        <div class="max-w-7xl mx-auto px-4 py-4 flex flex-col sm:flex-row justify-between items-center gap-4">
+            <div class="flex items-center space-x-3">
+                <div class="bg-emerald-500/20 text-emerald-400 p-2.5 rounded-xl border border-emerald-500/30">
+                    <i class="fa-solid fa-chart-line text-xl"></i>
+                </div>
+                <div>
+                    <h1 class="text-xl font-bold bg-gradient-to-r from-emerald-400 to-teal-200 bg-clip-text text-transparent">InvestFlow</h1>
+                    <p class="text-xs text-slate-400">Kümülatif Yatırım Odaklı Bütçe Asistanı</p>
+                </div>
+            </div>
+            
+            <!-- Aktif Çalışılan Ay Seçici -->
+            <div class="flex items-center space-x-3 bg-slate-950 p-1.5 rounded-2xl border border-slate-800">
+                <button onclick="changeMonth(-1)" class="p-2 hover:bg-slate-800 rounded-xl text-slate-400 hover:text-white transition" title="Önceki Ay">
+                    <i class="fa-solid fa-chevron-left"></i>
+                </button>
+                <div class="text-center px-3">
+                    <span id="currentMonthLabel" class="text-sm font-bold text-emerald-400 block">Ekim 2026</span>
+                    <span class="text-[10px] text-slate-500">Çalışılan Dönem</span>
+                </div>
+                <button onclick="changeMonth(1)" class="p-2 hover:bg-slate-800 rounded-xl text-slate-400 hover:text-white transition" title="Sonraki Ay">
+                    <i class="fa-solid fa-chevron-right"></i>
+                </button>
+            </div>
+
+            <div class="flex items-center space-x-3">
+                <div class="hidden sm:flex items-center bg-slate-800 px-3 py-1.5 rounded-lg border border-slate-700 text-xs text-slate-300">
+                    <i class="fa-solid fa-fire text-amber-500 mr-2"></i>
+                    <span id="streakBadge">Bileşik Büyüme Aktif</span>
+                </div>
+                <button onclick="resetData()" class="text-xs text-slate-500 hover:text-slate-300 transition">
+                    <i class="fa-solid fa-rotate-right mr-1"></i> Sıfırla
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <main class="max-w-7xl mx-auto px-4 py-8 grid grid-cols-1 lg:grid-cols-12 gap-8">
+
+        <!-- SOL KOLON (8 Kolon) -->
+        <div class="lg:col-span-8 space-y-8">
+            
+            <!-- KÜMÜLATİF PORTFÖY BANNERI & YATIRIM BİLKİSİ -->
+            <div class="bg-gradient-to-r from-emerald-950 via-slate-900 to-slate-900 border border-emerald-500/40 rounded-3xl p-6 shadow-2xl relative overflow-hidden">
+                <div class="absolute -right-4 -bottom-4 text-emerald-500/10 text-8xl pointer-events-none">
+                    <i class="fa-solid fa-piggy-bank"></i>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6 relative z-10">
+                    <div>
+                        <span class="text-xs text-emerald-400 font-semibold uppercase tracking-wider block mb-1">Toplam Birikmiş Portföy</span>
+                        <div class="text-3xl font-black text-emerald-400" id="cumulativePortfolio">0 ₺</div>
+                        <p class="text-[11px] text-slate-400 mt-1">Geçmiş aylardan devreden toplam birikim</p>
+                    </div>
+
+                    <div class="border-t md:border-t-0 md:border-l border-slate-800 pt-4 md:pt-0 md:pl-6">
+                        <span class="text-xs text-slate-400 font-medium block mb-1">Bu Ay Yatırıma Ayrılan</span>
+                        <div class="text-2xl font-bold text-slate-100" id="thisMonthNet">0 ₺</div>
+                        <span id="thisMonthRatio" class="text-[11px] text-emerald-400/90 block mt-1">Gelirin %0'ı</span>
+                    </div>
+
+                    <div class="border-t md:border-t-0 md:border-l border-slate-800 pt-4 md:pt-0 md:pl-6">
+                        <span class="text-xs text-slate-400 font-medium block mb-1">12 Ay Sonra Tahmini Varlık</span>
+                        <div class="text-2xl font-bold text-teal-300" id="projected12m">0 ₺</div>
+                        <span class="text-[11px] text-slate-500 block mt-1">%40 Yıllık Tahmini Büyüme İle</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- DÖNEMLİK KPI KARTLARI (Seçili Ay) -->
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <!-- Aylık Gelir -->
+                <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4 shadow-lg">
+                    <div class="flex justify-between items-center text-slate-400 text-xs mb-2">
+                        <span>Aylık Toplam Gelir</span>
+                        <i class="fa-solid fa-wallet text-emerald-400"></i>
+                    </div>
+                    <div class="text-xl font-bold text-slate-100" id="totalIncome">0 ₺</div>
+                    <div class="text-[10px] text-slate-500 mt-1">Maaş, Ek Gelir vb.</div>
+                </div>
+
+                <!-- Sabit Ödemeler -->
+                <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4 shadow-lg">
+                    <div class="flex justify-between items-center text-slate-400 text-xs mb-2">
+                        <span>Sabit Ödemeler</span>
+                        <i class="fa-solid fa-file-invoice-dollar text-rose-400"></i>
+                    </div>
+                    <div class="text-xl font-bold text-rose-400" id="fixedExpenses">0 ₺</div>
+                    <div class="text-[10px] text-slate-500 mt-1">Kira, Faturalar, Taksitler</div>
+                </div>
+
+                <!-- Özel Harcamalar -->
+                <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4 shadow-lg">
+                    <div class="flex justify-between items-center text-slate-400 text-xs mb-2">
+                        <span>Özel Harcamalar</span>
+                        <i class="fa-solid fa-basket-shopping text-amber-400"></i>
+                    </div>
+                    <div class="text-xl font-bold text-amber-400" id="variableExpenses">0 ₺</div>
+                    <div class="text-[10px] text-slate-500 mt-1">Yemek, Eğlence, Alışveriş</div>
+                </div>
+            </div>
+
+            <!-- Yatırım Koçu / Akıllı Dağıtım Modeli -->
+            <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl">
+                <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
+                    <div>
+                        <h2 class="text-lg font-bold text-slate-100 flex items-center gap-2">
+                            <i class="fa-solid fa-wand-magic-sparkles text-emerald-400"></i>
+                            Kümülatif Portföy Dağılım Modeli
+                        </h2>
+                        <p class="text-xs text-slate-400 mt-0.5">Toplam biriken bakiyenize göre önerilen varlık dağılımı</p>
+                    </div>
+
+                    <!-- Risk Profili Seçimi -->
+                    <div class="flex bg-slate-950 p-1 rounded-xl border border-slate-800 text-xs">
+                        <button onclick="setRiskProfile('conservative')" id="risk-conservative" class="px-3 py-1.5 rounded-lg text-slate-400 transition">Muhafazakar</button>
+                        <button onclick="setRiskProfile('balanced')" id="risk-balanced" class="px-3 py-1.5 rounded-lg bg-emerald-500/20 text-emerald-400 font-medium transition">Dengeli</button>
+                        <button onclick="setRiskProfile('aggressive')" id="risk-aggressive" class="px-3 py-1.5 rounded-lg text-slate-400 transition">Atak</button>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6 items-center">
+                    <div class="h-48 relative flex items-center justify-center">
+                        <canvas id="investChart"></canvas>
+                    </div>
+
+                    <div id="portfolioList" class="space-y-2.5">
+                        <!-- JS Dinamik -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- Listeler -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                
+                <!-- Sabit Ödemeler Listesi -->
+                <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5">
+                    <div class="flex justify-between items-center mb-4">
+                        <h3 class="font-bold text-slate-200 text-sm flex items-center gap-2">
+                            <i class="fa-solid fa-calendar-check text-rose-400"></i> Sabit Ödemeler
+                        </h3>
+                        <span class="text-xs text-slate-500" id="fixedCount">0 Kalem</span>
+                    </div>
+                    <div id="fixedList" class="space-y-2.5 max-h-60 overflow-y-auto pr-1"></div>
+                </div>
+
+                <!-- Özel Harcamalar Listesi -->
+                <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5">
+                    <div class="flex justify-between items-center mb-4">
+                        <h3 class="font-bold text-slate-200 text-sm flex items-center gap-2">
+                            <i class="fa-solid fa-receipt text-amber-400"></i> Özel Harcamalar
+                        </h3>
+                        <span class="text-xs text-slate-500" id="variableCount">0 Harcama</span>
+                    </div>
+                    <div id="variableList" class="space-y-2.5 max-h-60 overflow-y-auto pr-1"></div>
+                </div>
+
+            </div>
+
+        </div>
+
+        <!-- SAĞ KOLON: Giriş Formları ve Fırsat Maliyeti (4 Kolon) -->
+        <div class="lg:col-span-4 space-y-6">
+
+            <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl">
+                <div class="flex border-b border-slate-800 mb-5 text-xs font-medium">
+                    <button onclick="switchTab('income')" id="tab-income" class="flex-1 pb-3 text-emerald-400 border-b-2 border-emerald-400 text-center">
+                        <i class="fa-solid fa-plus-circle block text-base mb-1"></i> Gelir Ekle
+                    </button>
+                    <button onclick="switchTab('fixed')" id="tab-fixed" class="flex-1 pb-3 text-slate-400 hover:text-slate-200 text-center">
+                        <i class="fa-solid fa-lock block text-base mb-1"></i> Sabit Gider
+                    </button>
+                    <button onclick="switchTab('variable')" id="tab-variable" class="flex-1 pb-3 text-slate-400 hover:text-slate-200 text-center">
+                        <i class="fa-solid fa-cart-shopping block text-base mb-1"></i> Özel Harcama
+                    </button>
+                </div>
+
+                <!-- Form: GELİR -->
+                <form id="incomeForm" onsubmit="addIncome(event)" class="space-y-3">
+                    <div>
+                        <label class="text-xs text-slate-400 mb-1 block">Gelir Kaynağı</label>
+                        <input type="text" id="incomeTitle" placeholder="Örn: Maaş, Freelance, Kira" required class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-sm text-slate-100 focus:outline-none focus:border-emerald-500">
+                    </div>
+                    <div>
+                        <label class="text-xs text-slate-400 mb-1 block">Tutar (TL)</label>
+                        <input type="number" id="incomeAmount" placeholder="0.00" min="1" step="any" required class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-sm text-slate-100 focus:outline-none focus:border-emerald-500">
+                    </div>
+                    <button type="submit" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white py-2.5 rounded-xl font-medium text-sm transition">Geliri Ekle</button>
+                </form>
+
+                <!-- Form: SABİT GİDER -->
+                <form id="fixedForm" onsubmit="addFixedExpense(event)" class="space-y-3 hidden">
+                    <div>
+                        <label class="text-xs text-slate-400 mb-1 block">Ödeme Adı</label>
+                        <input type="text" id="fixedTitle" placeholder="Örn: Ev Kirası, Netflix, Elektrik" required class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-sm text-slate-100 focus:outline-none focus:border-rose-500">
+                    </div>
+                    <div>
+                        <label class="text-xs text-slate-400 mb-1 block">Aylık Tutar (TL)</label>
+                        <input type="number" id="fixedAmount" placeholder="0.00" min="1" step="any" required class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-sm text-slate-100 focus:outline-none focus:border-rose-500">
+                    </div>
+                    <div>
+                        <label class="text-xs text-slate-400 mb-1 block">Son Ödeme Günü (Ayın Kaçı?)</label>
+                        <input type="number" id="fixedDay" min="1" max="31" placeholder="Örn: 15" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-sm text-slate-100 focus:outline-none focus:border-rose-500">
+                    </div>
+                    <button type="submit" class="w-full bg-rose-600 hover:bg-rose-500 text-white py-2.5 rounded-xl font-medium text-sm transition">Sabit Ödeme Ekle</button>
+                </form>
+
+                <!-- Form: ÖZEL HARCAMA (Canlı Fırsat Maliyetli) -->
+                <form id="variableForm" onsubmit="addVariableExpense(event)" class="space-y-3 hidden">
+                    <div>
+                        <label class="text-xs text-slate-400 mb-1 block">Harcama Açıklaması</label>
+                        <input type="text" id="varTitle" placeholder="Örn: Dışarıda Yemek, Ayakkabı" required class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-sm text-slate-100 focus:outline-none focus:border-amber-500">
+                    </div>
+                    <div>
+                        <label class="text-xs text-slate-400 mb-1 block">Tutar (TL)</label>
+                        <input type="number" id="varAmount" oninput="calculateOpportunityCost(this.value)" placeholder="0.00" min="1" step="any" required class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-sm text-slate-100 focus:outline-none focus:border-amber-500">
+                    </div>
+                    <div>
+                        <label class="text-xs text-slate-400 mb-1 block">Kategori</label>
+                        <select id="varCategory" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-sm text-slate-100 focus:outline-none focus:border-amber-500">
+                            <option value="Yemek">Yemek & Kafe</option>
+                            <option value="Eğlence">Eğlence & Hobiler</option>
+                            <option value="Giyim">Giyim & Alışveriş</option>
+                            <option value="Teknoloji">Teknoloji & Elektronik</option>
+                            <option value="Diğer">Diğer</option>
+                        </select>
+                    </div>
+
+                    <!-- Canlı Fırsat Maliyeti Rozeti -->
+                    <div id="opportunityBadge" class="hidden bg-amber-500/10 border border-amber-500/30 p-3 rounded-xl text-xs text-amber-300 space-y-1">
+                        <div class="font-semibold flex items-center gap-1.5">
+                            <i class="fa-solid fa-lightbulb text-amber-400"></i> Yatırım Fırsat Maliyeti:
+                        </div>
+                        <p class="text-[11px] text-slate-300">Bu parayı harcamayıp yatırıma yönlendirseniz yıllık tahmini getirisi: <span id="oppCostValue" class="font-bold text-emerald-400">0 TL</span> olurdu.</p>
+                    </div>
+
+                    <button type="submit" class="w-full bg-amber-600 hover:bg-amber-500 text-white py-2.5 rounded-xl font-medium text-sm transition">Harcamayı Kaydet</button>
+                </form>
+            </div>
+
+            <!-- Seçili Ayın Gelir Kaynakları -->
+            <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5">
+                <h3 class="font-bold text-slate-200 text-sm mb-3 flex items-center justify-between">
+                    <span><i class="fa-solid fa-arrow-down-long text-emerald-400 mr-2"></i>Seçili Ayın Gelirleri</span>
+                    <span id="incomeCount" class="text-xs font-normal text-slate-500">0 Kalem</span>
+                </h3>
+                <div id="incomeList" class="space-y-2 max-h-48 overflow-y-auto"></div>
+            </div>
+
+        </div>
+
+    </main>
+
+    <!-- JS Mantığı -->
+    <script>
+        const monthNames = ["Ocak", "Şubat", "Mart", "Nisan", "Mayıs", "Haziran", "Temmuz", "Ağustos", "Eylül", "Ekim", "Kasım", "Aralık"];
+        let currentDate = new Date();
+        let activeYear = currentDate.getFullYear();
+        let activeMonth = currentDate.getMonth();
+
+        // Yerel Hafıza Yapısı
+        let db = JSON.parse(localStorage.getItem('investflow_db')) || {
+            riskProfile: 'balanced',
+            months: {}
+        };
+
+        let investChart = null;
+
+        const riskProfiles = {
+            conservative: [
+                { name: 'Altın & Kıymetli Maden', ratio: 0.40, color: '#f59e0b' },
+                { name: 'Mevduat / PPF', ratio: 0.35, color: '#10b981' },
+                { name: 'BIST 30 Temettü', ratio: 0.15, color: '#3b82f6' },
+                { name: 'Eurobond / Döviz', ratio: 0.10, color: '#6366f1' }
+            ],
+            balanced: [
+                { name: 'BIST / Yerel Hisseler', ratio: 0.35, color: '#3b82f6' },
+                { name: 'Altın & Fonlar', ratio: 0.25, color: '#f59e0b' },
+                { name: 'Yabancı Borsa Fonları', ratio: 0.25, color: '#8b5cf6' },
+                { name: 'Kripto / Büyüme', ratio: 0.15, color: '#ec4899' }
+            ],
+            aggressive: [
+                { name: 'BIST & Yabancı Hisseler', ratio: 0.45, color: '#3b82f6' },
+                { name: 'Kripto Varlıklar', ratio: 0.30, color: '#ec4899' },
+                { name: 'Teknoloji Fonları', ratio: 0.15, color: '#8b5cf6' },
+                { name: 'Altın', ratio: 0.10, color: '#f59e0b' }
+            ]
+        };
+
+        document.addEventListener('DOMContentLoaded', () => {
+            initCurrentMonth();
+            updateRiskProfileUI();
+            renderAll();
+        });
+
+        function getMonthKey(year = activeYear, month = activeMonth) {
+            return `${year}-${month}`;
+        }
+
+        function initCurrentMonth() {
+            const key = getMonthKey();
+            if (!db.months[key]) {
+                db.months[key] = { incomes: [], fixedExpenses: [], variableExpenses: [] };
+            }
+        }
+
+        function changeMonth(delta) {
+            activeMonth += delta;
+            if (activeMonth > 11) {
+                activeMonth = 0;
+                activeYear++;
+            } else if (activeMonth < 0) {
+                activeMonth = 11;
+                activeYear--;
+            }
+            initCurrentMonth();
+            renderAll();
+        }
+
+        function switchTab(tab) {
+            ['income', 'fixed', 'variable'].forEach(t => {
+                document.getElementById(`tab-${t}`).className = t === tab 
+                    ? 'flex-1 pb-3 text-emerald-400 border-b-2 border-emerald-400 text-center font-semibold'
+                    : 'flex-1 pb-3 text-slate-400 hover:text-slate-200 text-center';
+                document.getElementById(`${t}Form`).classList.toggle('hidden', t !== tab);
+            });
+        }
+
+        // Veri Ekleme Fonksiyonları
+        function addIncome(e) {
+            e.preventDefault();
+            const title = document.getElementById('incomeTitle').value;
+            const amount = parseFloat(document.getElementById('incomeAmount').value);
+            db.months[getMonthKey()].incomes.push({ id: Date.now(), title, amount });
+            saveAndRender();
+            e.target.reset();
+        }
+
+        function addFixedExpense(e) {
+            e.preventDefault();
+            const title = document.getElementById('fixedTitle').value;
+            const amount = parseFloat(document.getElementById('fixedAmount').value);
+            const day = document.getElementById('fixedDay').value || '-';
+            db.months[getMonthKey()].fixedExpenses.push({ id: Date.now(), title, amount, day, paid: false });
+            saveAndRender();
+            e.target.reset();
+        }
+
+        function addVariableExpense(e) {
+            e.preventDefault();
+            const title = document.getElementById('varTitle').value;
+            const amount = parseFloat(document.getElementById('varAmount').value);
+            const category = document.getElementById('varCategory').value;
+            db.months[getMonthKey()].variableExpenses.push({ id: Date.now(), title, amount, category, date: new Date().toLocaleDateString('tr-TR') });
+            saveAndRender();
+            e.target.reset();
+            document.getElementById('opportunityBadge').classList.add('hidden');
+        }
+
+        function calculateOpportunityCost(val) {
+            const amount = parseFloat(val);
+            const badge = document.getElementById('opportunityBadge');
+            if (!amount || amount <= 0) {
+                badge.classList.add('hidden');
+                return;
+            }
+            document.getElementById('oppCostValue').innerText = formatTL(amount * 1.35);
+            badge.classList.remove('hidden');
+        }
+
+        function toggleFixedPaid(id) {
+            const list = db.months[getMonthKey()].fixedExpenses;
+            db.months[getMonthKey()].fixedExpenses = list.map(item => item.id === id ? { ...item, paid: !item.paid } : item);
+            saveAndRender();
+        }
+
+        function deleteItem(type, id) {
+            db.months[getMonthKey()][type] = db.months[getMonthKey()][type].filter(item => item.id !== id);
+            saveAndRender();
+        }
+
+        function setRiskProfile(profile) {
+            db.riskProfile = profile;
+            saveAndRender();
+            updateRiskProfileUI();
+        }
+
+        function updateRiskProfileUI() {
+            ['conservative', 'balanced', 'aggressive'].forEach(p => {
+                const btn = document.getElementById(`risk-${p}`);
+                btn.className = p === db.riskProfile 
+                    ? 'px-3 py-1.5 rounded-lg bg-emerald-500/20 text-emerald-400 font-medium transition'
+                    : 'px-3 py-1.5 rounded-lg text-slate-400 hover:text-slate-200 transition';
+            });
+        }
+
+        function saveAndRender() {
+            localStorage.setItem('investflow_db', JSON.stringify(db));
+            renderAll();
+        }
+
+        function renderAll() {
+            document.getElementById('currentMonthLabel').innerText = `${monthNames[activeMonth]} ${activeYear}`;
+
+            // Kümülatif Toplam (Geçmiş Tüm Aylardan Biriken Net Tutar)
+            let cumulativeTotal = 0;
+            Object.keys(db.months).forEach(key => {
+                const m = db.months[key];
+                const inc = m.incomes.reduce((a, b) => a + b.amount, 0);
+                const fix = m.fixedExpenses.reduce((a, b) => a + b.amount, 0);
+                const varE = m.variableExpenses.reduce((a, b) => a + b.amount, 0);
+                const net = Math.max(0, inc - (fix + varE));
+                cumulativeTotal += net;
+            });
+
+            // Seçili Ayın Hesaplamaları
+            const currentData = db.months[getMonthKey()] || { incomes: [], fixedExpenses: [], variableExpenses: [] };
+            const incCurrent = currentData.incomes.reduce((a, b) => a + b.amount, 0);
+            const fixCurrent = currentData.fixedExpenses.reduce((a, b) => a + b.amount, 0);
+            const varCurrent = currentData.variableExpenses.reduce((a, b) => a + b.amount, 0);
+            const netCurrent = Math.max(0, incCurrent - (fixCurrent + varCurrent));
+            const ratioCurrent = incCurrent > 0 ? ((netCurrent / incCurrent) * 100).toFixed(1) : 0;
+
+            const projected12 = (cumulativeTotal + (netCurrent * 12)) * 1.40;
+
+            document.getElementById('cumulativePortfolio').innerText = formatTL(cumulativeTotal);
+            document.getElementById('thisMonthNet').innerText = formatTL(netCurrent);
+            document.getElementById('thisMonthRatio').innerText = `Gelirin %${ratioCurrent}'i yatırıma hazır`;
+            document.getElementById('projected12m').innerText = formatTL(projected12);
+
+            document.getElementById('totalIncome').innerText = formatTL(incCurrent);
+            document.getElementById('fixedExpenses').innerText = formatTL(fixCurrent);
+            document.getElementById('variableExpenses').innerText = formatTL(varCurrent);
+
+            renderIncomes(currentData.incomes);
+            renderFixed(currentData.fixedExpenses);
+            renderVariable(currentData.variableExpenses);
+            renderChartAndPortfolio(cumulativeTotal);
+        }
+
+        function renderIncomes(incomes) {
+            const list = document.getElementById('incomeList');
+            document.getElementById('incomeCount').innerText = `${incomes.length} Kalem`;
+            if (incomes.length === 0) {
+                list.innerHTML = `<p class="text-xs text-slate-500 italic py-2 text-center">Bu ay henüz gelir girilmedi.</p>`;
+                return;
+            }
+            list.innerHTML = incomes.map(item => `
+                <div class="flex justify-between items-center bg-slate-950 p-2.5 rounded-xl border border-slate-800 text-xs">
+                    <span class="font-medium text-slate-200">${item.title}</span>
+                    <div class="flex items-center space-x-2">
+                        <span class="text-emerald-400 font-bold">+${formatTL(item.amount)}</span>
+                        <button onclick="deleteItem('incomes', ${item.id})" class="text-slate-600 hover:text-rose-400 transition ml-2">
+                            <i class="fa-solid fa-trash"></i>
+                        </button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function renderFixed(fixed) {
+            const list = document.getElementById('fixedList');
+            document.getElementById('fixedCount').innerText = `${fixed.length} Kalem`;
+            if (fixed.length === 0) {
+                list.innerHTML = `<p class="text-xs text-slate-500 italic py-4 text-center">Bu ay sabit ödeme bulunmuyor.</p>`;
+                return;
+            }
+            list.innerHTML = fixed.map(item => `
+                <div class="flex justify-between items-center bg-slate-950 p-2.5 rounded-xl border ${item.paid ? 'border-emerald-500/30 bg-emerald-950/10' : 'border-slate-800'} text-xs">
+                    <div class="flex items-center space-x-2">
+                        <button onclick="toggleFixedPaid(${item.id})" class="${item.paid ? 'text-emerald-400' : 'text-slate-600 hover:text-slate-400'}">
+                            <i class="fa-solid ${item.paid ? 'fa-circle-check' : 'fa-circle'} text-base"></i>
+                        </button>
+                        <div>
+                            <span class="font-medium ${item.paid ? 'line-through text-slate-500' : 'text-slate-200'}">${item.title}</span>
+                            <span class="text-[10px] text-slate-500 block">Her ayın ${item.day}'i</span>
+                        </div>
+                    </div>
+                    <div class="flex items-center space-x-2">
+                        <span class="text-rose-400 font-semibold">-${formatTL(item.amount)}</span>
+                        <button onclick="deleteItem('fixedExpenses', ${item.id})" class="text-slate-600 hover:text-rose-400 transition">
+                            <i class="fa-solid fa-trash"></i>
+                        </button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function renderVariable(variable) {
+            const list = document.getElementById('variableList');
+            document.getElementById('variableCount').innerText = `${variable.length} Harcama`;
+            if (variable.length === 0) {
+                list.innerHTML = `<p class="text-xs text-slate-500 italic py-4 text-center">Bu ay özel harcama yok.</p>`;
+                return;
+            }
+            list.innerHTML = variable.map(item => `
+                <div class="flex justify-between items-center bg-slate-950 p-2.5 rounded-xl border border-slate-800 text-xs">
+                    <div>
+                        <div class="flex items-center gap-1.5">
+                            <span class="font-medium text-slate-200">${item.title}</span>
+                            <span class="text-[9px] bg-slate-800 text-slate-400 px-1.5 py-0.5 rounded-md">${item.category}</span>
+                        </div>
+                        <span class="text-[10px] text-slate-500">${item.date}</span>
+                    </div>
+                    <div class="flex items-center space-x-2">
+                        <span class="text-amber-400 font-semibold">-${formatTL(item.amount)}</span>
+                        <button onclick="deleteItem('variableExpenses', ${item.id})" class="text-slate-600 hover:text-rose-400 transition">
+                            <i class="fa-solid fa-trash"></i>
+                        </button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function renderChartAndPortfolio(totalInvestable) {
+            const currentProfile = riskProfiles[db.riskProfile];
+            const portfolioList = document.getElementById('portfolioList');
+
+            portfolioList.innerHTML = currentProfile.map(item => {
+                const allocatedTL = totalInvestable * item.ratio;
+                return `
+                    <div class="flex items-center justify-between text-xs p-2.5 rounded-xl bg-slate-950/80 border border-slate-800">
+                        <div class="flex items-center space-x-2">
+                            <span class="w-2.5 h-2.5 rounded-full" style="background-color: ${item.color}"></span>
+                            <span class="text-slate-300 font-medium">${item.name}</span>
+                        </div>
+                        <div class="text-right">
+                            <span class="font-bold text-slate-100 block">${formatTL(allocatedTL)}</span>
+                            <span class="text-[10px] text-slate-500">%${(item.ratio * 100)}</span>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+
+            const ctx = document.getElementById('investChart').getContext('2d');
+            if (investChart) investChart.destroy();
+
+            investChart = new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: currentProfile.map(i => i.name),
+                    datasets: [{
+                        data: currentProfile.map(i => totalInvestable * i.ratio),
+                        backgroundColor: currentProfile.map(i => i.color),
+                        borderWidth: 0,
+                        hoverOffset: 4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    return ` ${context.label}: ${formatTL(context.raw)}`;
+                                }
+                            }
+                        }
+                    },
+                    cutout: '70%'
+                }
+            });
+        }
+
+        function formatTL(value) {
+            return new Intl.NumberFormat('tr-TR', { style: 'currency', currency: 'TRY' }).format(value || 0);
+        }
+
+        function resetData() {
+            if (confirm('Tüm verileriniz ve geçmiş aylık birikimleriniz silinecektir. Emin misiniz?')) {
+                localStorage.removeItem('investflow_db');
+                db = { riskProfile: 'balanced', months: {} };
+                initCurrentMonth();
+                renderAll();
+            }
+        }
+    </script>
+</body>
+</html>
